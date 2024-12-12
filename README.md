@@ -1,4 +1,4 @@
-Quickmath
+Calc
 =========
 
 A simple plugin to do live calculations in Neovim.
