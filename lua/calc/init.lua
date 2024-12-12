@@ -3,6 +3,9 @@ local M = {}
 local vnamespace = vim.api.nvim_create_namespace("calc")
 local buffer_envs = setmetatable({}, {__mode = "k"})
 
+-- Default format for each buffer
+local display_formats = {}
+
 -- Create math environment for a buffer
 local function create_math_env()
     local env = {}
@@ -17,10 +20,23 @@ local function create_math_env()
     })
 end
 
+-- Format value based on current display format
+local function format_value(value, format)
+    if type(value) == "number" and math.floor(value) == value then
+        -- Only format integers
+        if format == "hex" then
+            return string.format("0x%x", value)
+        end
+    end
+    return tostring(value)
+end
+
 -- Process buffer content and evaluate expressions
 local function process_buffer_content(content, env)
     local results = {}
     local virt_texts = {}
+    local bufnr = 0  -- current buffer
+    local format = display_formats[bufnr] or "dec"
     
     for i, line in ipairs(content) do
         if not line:match("^%s*$") then
@@ -40,7 +56,7 @@ local function process_buffer_content(content, env)
                     if success then
                         env[var] = value
                         results[i] = {value = value, name = var}
-                        virt_texts[i] = tostring(value)
+                        virt_texts[i] = format_value(value, format)
                     else
                         results[i] = {error = value}
                     end
@@ -80,6 +96,48 @@ local function update_virtual_text(bufnr, results, virt_texts)
             end
         end
     end
+end
+
+-- Toggle display format and refresh display
+function M.toggle_format()
+    local bufnr = 0
+    display_formats[bufnr] = (display_formats[bufnr] == "hex") and "dec" or "hex"
+    
+    -- Refresh display
+    local env = buffer_envs[bufnr]
+    if env then
+        local content = vim.api.nvim_buf_get_lines(bufnr, 0, -1, true)
+        local results, virt_texts = process_buffer_content(content, env)
+        env.virt_texts = virt_texts
+        update_virtual_text(bufnr, results, virt_texts)
+    end
+    
+    -- Show message about current format
+    local format = display_formats[bufnr] or "dec"
+    vim.api.nvim_echo({{("Format: %s"):format(format), "Normal"}}, true, {})
+end
+
+-- Set specific format
+function M.set_format(format)
+    if format ~= "dec" and format ~= "hex" then
+        vim.api.nvim_echo({{"Invalid format. Use 'dec' or 'hex'.", "ErrorMsg"}}, true, {})
+        return
+    end
+    
+    local bufnr = 0
+    display_formats[bufnr] = format
+    
+    -- Refresh display
+    local env = buffer_envs[bufnr]
+    if env then
+        local content = vim.api.nvim_buf_get_lines(bufnr, 0, -1, true)
+        local results, virt_texts = process_buffer_content(content, env)
+        env.virt_texts = virt_texts
+        update_virtual_text(bufnr, results, virt_texts)
+    end
+    
+    -- Show message about current format
+    vim.api.nvim_echo({{("Format: %s"):format(format), "Normal"}}, true, {})
 end
 
 -- Handle end of line functionality
@@ -125,11 +183,17 @@ function M.StartSession()
     local bufnr = 0
     local env = create_math_env()
     buffer_envs[bufnr] = env
+    display_formats[bufnr] = "dec"  -- Set default format
     
     -- Set up buffer
     vim.api.nvim_command("set ft=lua")
     vim.cmd [[set buftype=nowrite]]
     vim.api.nvim_buf_set_keymap(0, "n", "$", [[:lua require"calc".go_eol()<CR>]], { silent=true })
+    
+    -- Add commands for format switching
+    vim.cmd [[command! CalcToggleFormat lua require"calc".toggle_format()]]
+    vim.cmd [[command! CalcHex lua require"calc".set_format("hex")]]
+    vim.cmd [[command! CalcDec lua require"calc".set_format("dec")]]
     
     -- Attach buffer callback
     vim.api.nvim_buf_attach(bufnr, false, {
