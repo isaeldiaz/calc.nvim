@@ -189,6 +189,9 @@ function M.StartSession()
     vim.api.nvim_command("set ft=lua")
     vim.cmd [[set buftype=nowrite]]
     vim.api.nvim_buf_set_keymap(0, "n", "$", [[:lua require"calc".go_eol()<CR>]], { silent=true })
+    vim.api.nvim_buf_set_keymap(0, "n", "<a-t>", [[:lua require"calc".toggle_format()<CR>]], { silent=true })
+    vim.api.nvim_buf_set_keymap(0, "n", "<a-h>", [[:lua require"calc".set_format("hex")<CR>]], { silent=true })
+    vim.api.nvim_buf_set_keymap(0, "n", "<a-d>", [[:lua require"calc".set_format("dec")<CR>]], { silent=true })
     
     -- Add commands for format switching
     vim.cmd [[command! CalcToggleFormat lua require"calc".toggle_format()]]
